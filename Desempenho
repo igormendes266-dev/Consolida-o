@@ -1,0 +1,69 @@
+import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# =====================
+# 1. Carregar os dados
+# =====================
+df = pd.read_csv("data/logs.csv")
+
+st.title("🚚 Painel de Desempenho - Descarregamento de Carros")
+
+# =====================
+# 2. Filtros
+# =====================
+st.sidebar.header("🔎 Filtros")
+doca_filter = st.sidebar.multiselect("Selecione a(s) doca(s):", df["doca"].unique())
+transportadora_filter = st.sidebar.multiselect("Selecione transportadora(s):", df["transportadora"].unique())
+
+# Aplicar filtros
+if doca_filter:
+    df = df[df["doca"].isin(doca_filter)]
+if transportadora_filter:
+    df = df[df["transportadora"].isin(transportadora_filter)]
+
+# =====================
+# 3. KPIs
+# =====================
+st.subheader("📌 Indicadores principais")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Total de Descargas", len(df))
+col2.metric("Tempo Médio (min)", round(df["tempo_descarregamento"].mean(), 2))
+col3.metric("Média Espera (min)", round(df["minutos_espera"].mean(), 2))
+col4.metric("Volume Total", df["volume"].sum())
+
+# =====================
+# 4. Gráfico por doca
+# =====================
+st.subheader("📊 Tempo médio por doca")
+fig, ax = plt.subplots()
+df.groupby("doca")["tempo_descarregamento"].mean().plot(kind="bar", ax=ax, color="skyblue")
+ax.set_ylabel("Minutos")
+st.pyplot(fig)
+
+# =====================
+# 5. Ranking de duplas
+# =====================
+st.subheader("🏆 Ranking de duplas (menor tempo médio)")
+dupla_rank = df.groupby("dupla")["tempo_descarregamento"].mean().sort_values()
+st.bar_chart(dupla_rank)
+
+# =====================
+# 6. Ranking de transportadoras
+# =====================
+st.subheader("🚛 Ranking de transportadoras (volume descarregado)")
+transp_rank = df.groupby("transportadora")["volume"].sum().sort_values(ascending=False)
+st.bar_chart(transp_rank)
+
+# =====================
+# 7. Ranking de drivers
+# =====================
+st.subheader("👷 Ranking de motoristas (tempo médio)")
+driver_rank = df.groupby("driver")["tempo_descarregamento"].mean().sort_values()
+st.bar_chart(driver_rank)
+
+# =====================
+# 8. Dados detalhados
+# =====================
+st.subheader("📋 Dados detalhados")
+st.dataframe(df)
