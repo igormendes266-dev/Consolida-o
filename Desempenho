@@ -1,11 +1,28 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # =====================
 # 1. Carregar os dados
 # =====================
-df = pd.read_csv("data/logs.csv")
+DATA_PATH = "data/logs.csv"
+
+if not os.path.exists(DATA_PATH):
+    st.error(f"Arquivo '{DATA_PATH}' não encontrado! Verifique o caminho e tente novamente.")
+    st.stop()
+
+try:
+    df = pd.read_csv(DATA_PATH)
+except Exception as e:
+    st.error(f"Erro ao ler o arquivo: {e}")
+    st.stop()
+
+required_columns = {"doca", "transportadora", "tempo_descarregamento", "minutos_espera", "volume", "dupla", "driver"}
+missing_cols = required_columns - set(df.columns)
+if missing_cols:
+    st.error(f"Colunas ausentes no CSV: {', '.join(missing_cols)}")
+    st.stop()
 
 st.title("🚚 Painel de Desempenho - Descarregamento de Carros")
 
@@ -17,53 +34,70 @@ doca_filter = st.sidebar.multiselect("Selecione a(s) doca(s):", df["doca"].uniqu
 transportadora_filter = st.sidebar.multiselect("Selecione transportadora(s):", df["transportadora"].unique())
 
 # Aplicar filtros
+filtered_df = df.copy()
 if doca_filter:
-    df = df[df["doca"].isin(doca_filter)]
+    filtered_df = filtered_df[filtered_df["doca"].isin(doca_filter)]
 if transportadora_filter:
-    df = df[df["transportadora"].isin(transportadora_filter)]
+    filtered_df = filtered_df[filtered_df["transportadora"].isin(transportadora_filter)]
+
+if filtered_df.empty:
+    st.warning("Nenhum dado encontrado para os filtros selecionados.")
+    st.stop()
 
 # =====================
 # 3. KPIs
 # =====================
 st.subheader("📌 Indicadores principais")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Total de Descargas", len(df))
-col2.metric("Tempo Médio (min)", round(df["tempo_descarregamento"].mean(), 2))
-col3.metric("Média Espera (min)", round(df["minutos_espera"].mean(), 2))
-col4.metric("Volume Total", df["volume"].sum())
+col1.metric("Total de Descargas", len(filtered_df))
+col2.metric("Tempo Médio (min)", round(filtered_df["tempo_descarregamento"].mean(), 2))
+col3.metric("Média Espera (min)", round(filtered_df["minutos_espera"].mean(), 2))
+col4.metric("Volume Total", filtered_df["volume"].sum())
 
 # =====================
 # 4. Gráfico por doca
 # =====================
 st.subheader("📊 Tempo médio por doca")
-fig, ax = plt.subplots()
-df.groupby("doca")["tempo_descarregamento"].mean().plot(kind="bar", ax=ax, color="skyblue")
-ax.set_ylabel("Minutos")
-st.pyplot(fig)
+if not filtered_df.groupby("doca")["tempo_descarregamento"].mean().empty:
+    fig, ax = plt.subplots()
+    filtered_df.groupby("doca")["tempo_descarregamento"].mean().plot(kind="bar", ax=ax, color="skyblue")
+    ax.set_ylabel("Minutos")
+    st.pyplot(fig)
+else:
+    st.info("Sem dados para gráfico de docas.")
 
 # =====================
 # 5. Ranking de duplas
 # =====================
 st.subheader("🏆 Ranking de duplas (menor tempo médio)")
-dupla_rank = df.groupby("dupla")["tempo_descarregamento"].mean().sort_values()
-st.bar_chart(dupla_rank)
+dupla_rank = filtered_df.groupby("dupla")["tempo_descarregamento"].mean().sort_values()
+if not dupla_rank.empty:
+    st.bar_chart(dupla_rank)
+else:
+    st.info("Sem dados para ranking de duplas.")
 
 # =====================
 # 6. Ranking de transportadoras
 # =====================
 st.subheader("🚛 Ranking de transportadoras (volume descarregado)")
-transp_rank = df.groupby("transportadora")["volume"].sum().sort_values(ascending=False)
-st.bar_chart(transp_rank)
+transp_rank = filtered_df.groupby("transportadora")["volume"].sum().sort_values(ascending=False)
+if not transp_rank.empty:
+    st.bar_chart(transp_rank)
+else:
+    st.info("Sem dados para ranking de transportadoras.")
 
 # =====================
 # 7. Ranking de drivers
 # =====================
 st.subheader("👷 Ranking de motoristas (tempo médio)")
-driver_rank = df.groupby("driver")["tempo_descarregamento"].mean().sort_values()
-st.bar_chart(driver_rank)
+driver_rank = filtered_df.groupby("driver")["tempo_descarregamento"].mean().sort_values()
+if not driver_rank.empty:
+    st.bar_chart(driver_rank)
+else:
+    st.info("Sem dados para ranking de motoristas.")
 
 # =====================
 # 8. Dados detalhados
 # =====================
 st.subheader("📋 Dados detalhados")
-st.dataframe(df)
+st.dataframe(filtered_df)
